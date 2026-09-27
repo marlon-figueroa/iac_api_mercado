@@ -15,8 +15,6 @@ Parameters:
     Type: AWS::EC2::VPC::Id
   PrivateSubnetIds:
     Type: CommaDelimitedList
-  PublicSubnetIds:
-    Type: CommaDelimitedList
   EksClusterRoleArn:
     Type: String
   EksNodeRoleArn:
@@ -102,7 +100,6 @@ Resources:
 
   KarpenterControllerRole:
     Type: AWS::IAM::Role
-    DependsOn: OidcProvider
     Properties:
       RoleName: !Sub "${ProjectName}-${Environment}-karpenter-controller"
       AssumeRolePolicyDocument: !Sub
@@ -144,7 +141,6 @@ Resources:
 
   FastApiPodRole:
     Type: AWS::IAM::Role
-    DependsOn: OidcProvider
     Properties:
       RoleName: !Sub "${ProjectName}-${Environment}-fastapi-pod"
       AssumeRolePolicyDocument: !Sub
@@ -174,7 +170,6 @@ Resources:
 
   BootstrapNodeGroup:
     Type: AWS::EKS::Nodegroup
-    DependsOn: EksCluster
     Properties:
       ClusterName: !Ref EksCluster
       # Sufijo al2023: al cambiar AmiType (AL2→AL2023) CFN reemplaza el NG; el nombre debe
