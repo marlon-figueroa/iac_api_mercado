@@ -65,7 +65,7 @@ for mmd in "${DIAGRAMS}"/*.mmd; do
   echo "Renderizando ${base}.mmd → media/${base}.png"
   # --size limita el lado mayor del PNG. -w/-H ya no existen en mermaid-cli
   # reciente y, sin tope, Puppeteer exporta un lienzo que LaTeX no cabe en A4.
-  run_mmdc -t base -c "$MMD_CONFIG" -i "$mmd" -o "${MEDIA}/${base}.png" \
+  run_mmdc -c "$MMD_CONFIG" -i "$mmd" -o "${MEDIA}/${base}.png" \
     -b white --size 1400 -s 2
   normalize_png "${MEDIA}/${base}.png"
 done
