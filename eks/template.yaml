@@ -1,0 +1,243 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Cluster EKS, node group bootstrap spot, addons, OIDC e IRSA
+
+Parameters:
+  Environment:
+    Type: String
+  ProjectName:
+    Type: String
+  ClusterName:
+    Type: String
+  KubernetesVersion:
+    Type: String
+    Default: "1.33"
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  PrivateSubnetIds:
+    Type: CommaDelimitedList
+  PublicSubnetIds:
+    Type: CommaDelimitedList
+  EksClusterRoleArn:
+    Type: String
+  EksNodeRoleArn:
+    Type: String
+  EksSecretsKeyArn:
+    Type: String
+  KarpenterControllerPolicyArn:
+    Type: String
+  FastApiDynamoDbPolicyArn:
+    Type: String
+  KarpenterInterruptionQueueArn:
+    Type: String
+  BootstrapInstanceType:
+    Type: String
+    Default: t3a.small
+  BootstrapDesiredCapacity:
+    Type: Number
+    Default: 1
+  BootstrapMinSize:
+    Type: Number
+    Default: 1
+  BootstrapMaxSize:
+    Type: Number
+    Default: 2
+  BootstrapCapacityType:
+    Type: String
+    Default: SPOT
+    AllowedValues:
+      - SPOT
+      - ON_DEMAND
+
+Resources:
+  NodeSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "EKS nodes ${ClusterName}"
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-eks-nodes"
+        - Key: !Sub "kubernetes.io/cluster/${ClusterName}"
+          Value: owned
+
+  NodeSecurityGroupIngressSelf:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref NodeSecurityGroup
+      IpProtocol: "-1"
+      SourceSecurityGroupId: !Ref NodeSecurityGroup
+      Description: Node to node
+
+  EksCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name: !Ref ClusterName
+      Version: !Ref KubernetesVersion
+      RoleArn: !Ref EksClusterRoleArn
+      ResourcesVpcConfig:
+        SubnetIds: !Ref PrivateSubnetIds
+        EndpointPrivateAccess: true
+        EndpointPublicAccess: true
+        SecurityGroupIds:
+          - !Ref NodeSecurityGroup
+      EncryptionConfig:
+        - Provider:
+            KeyArn: !Ref EksSecretsKeyArn
+          Resources:
+            - secrets
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  OidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Properties:
+      Url: !GetAtt EksCluster.OpenIdConnectIssuerUrl
+      ClientIdList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 9e99a48a9960b14926bb7f3b02e22da0ecd2a979
+
+  KarpenterControllerRole:
+    Type: AWS::IAM::Role
+    DependsOn: OidcProvider
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-karpenter-controller"
+      AssumeRolePolicyDocument: !Sub
+        - |
+          {
+            "Version": "2012-10-17",
+            "Statement": [{
+              "Effect": "Allow",
+              "Principal": {"Federated": "${OidcArn}"},
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "StringEquals": {
+                  "${Issuer}:sub": "system:serviceaccount:kube-system:karpenter",
+                  "${Issuer}:aud": "sts.amazonaws.com"
+                }
+              }
+            }]
+          }
+        - OidcArn: !GetAtt OidcProvider.Arn
+          Issuer: !Select
+            - 1
+            - !Split
+              - "https://"
+              - !GetAtt EksCluster.OpenIdConnectIssuerUrl
+      ManagedPolicyArns:
+        - !Ref KarpenterControllerPolicyArn
+      Policies:
+        - PolicyName: KarpenterSqsInterruption
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                  - sqs:GetQueueUrl
+                  - sqs:ReceiveMessage
+                Resource: !Ref KarpenterInterruptionQueueArn
+
+  FastApiPodRole:
+    Type: AWS::IAM::Role
+    DependsOn: OidcProvider
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-fastapi-pod"
+      AssumeRolePolicyDocument: !Sub
+        - |
+          {
+            "Version": "2012-10-17",
+            "Statement": [{
+              "Effect": "Allow",
+              "Principal": {"Federated": "${OidcArn}"},
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "StringEquals": {
+                  "${Issuer}:sub": "system:serviceaccount:api-mercado:fastapi",
+                  "${Issuer}:aud": "sts.amazonaws.com"
+                }
+              }
+            }]
+          }
+        - OidcArn: !GetAtt OidcProvider.Arn
+          Issuer: !Select
+            - 1
+            - !Split
+              - "https://"
+              - !GetAtt EksCluster.OpenIdConnectIssuerUrl
+      ManagedPolicyArns:
+        - !Ref FastApiDynamoDbPolicyArn
+
+  BootstrapNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    DependsOn: EksCluster
+    Properties:
+      ClusterName: !Ref EksCluster
+      # Sufijo al2023: al cambiar AmiType (AL2→AL2023) CFN reemplaza el NG; el nombre debe
+      # ser distinto al existente o EKS responde 409 (create-before-delete con mismo nombre).
+      NodegroupName: !Sub "${ProjectName}-${Environment}-bootstrap-al2023"
+      NodeRole: !Ref EksNodeRoleArn
+      Subnets: !Ref PrivateSubnetIds
+      ScalingConfig:
+        MinSize: !Ref BootstrapMinSize
+        MaxSize: !Ref BootstrapMaxSize
+        DesiredSize: !Ref BootstrapDesiredCapacity
+      InstanceTypes:
+        - !Ref BootstrapInstanceType
+      CapacityType: !Ref BootstrapCapacityType
+      # AL2 no soportado en EKS >= 1.33; usar Amazon Linux 2023
+      AmiType: AL2023_x86_64_STANDARD
+      Labels:
+        role: bootstrap
+
+  AddonVpcCni:
+    Type: AWS::EKS::Addon
+    Properties:
+      AddonName: vpc-cni
+      ClusterName: !Ref EksCluster
+      ResolveConflicts: OVERWRITE
+
+  AddonCoreDns:
+    Type: AWS::EKS::Addon
+    DependsOn: BootstrapNodeGroup
+    Properties:
+      AddonName: coredns
+      ClusterName: !Ref EksCluster
+      ResolveConflicts: OVERWRITE
+
+  AddonKubeProxy:
+    Type: AWS::EKS::Addon
+    Properties:
+      AddonName: kube-proxy
+      ClusterName: !Ref EksCluster
+      ResolveConflicts: OVERWRITE
+
+Outputs:
+  ClusterName:
+    Value: !Ref EksCluster
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-ClusterName"
+  ClusterEndpoint:
+    Value: !GetAtt EksCluster.Endpoint
+  ClusterArn:
+    Value: !GetAtt EksCluster.Arn
+  OidcIssuerUrl:
+    Value: !GetAtt EksCluster.OpenIdConnectIssuerUrl
+  OidcProviderArn:
+    Value: !GetAtt OidcProvider.Arn
+  NodeSecurityGroupId:
+    Value: !Ref NodeSecurityGroup
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-NodeSecurityGroupId"
+  KarpenterControllerRoleArn:
+    Value: !GetAtt KarpenterControllerRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-KarpenterControllerRoleArn"
+  FastApiPodRoleArn:
+    Value: !GetAtt FastApiPodRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-FastApiPodRoleArn"

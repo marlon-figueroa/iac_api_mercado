@@ -1,0 +1,14 @@
+%%{init: {'theme': 'base', 'flowchart': {'useMaxWidth': false}}}%%
+flowchart TB
+  C[Cliente]
+  A["API Gateway stage /dev"]
+  V[VPC Link]
+  N[NLB TCP 80]
+  I[Istio HTTP 8080]
+  S[VirtualService]
+  P["uvicorn :8000"]
+  T[(Tabla DynamoDB)]
+
+  C -->|HTTPS| A
+  A -->|HTTP proxy| V --> N --> I --> S --> P
+  P -->|boto3 IRSA| T

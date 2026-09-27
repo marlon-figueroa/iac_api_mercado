@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: API Gateway REST con VPC Link hacia NLB interno (Istio)
+
+Parameters:
+  Environment:
+    Type: String
+  ProjectName:
+    Type: String
+  ApiStageName:
+    Type: String
+    Default: dev
+  NlbArn:
+    Type: String
+    Description: ARN del NLB interno creado por Istio/K8s
+  NlbDnsName:
+    Type: String
+    Description: DNS name del NLB (para URI de integracion)
+
+Conditions:
+  HasNlb: !Not [!Equals [!Ref NlbArn, ""]]
+
+Resources:
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}-api"
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  VpcLink:
+    Type: AWS::ApiGateway::VpcLink
+    Condition: HasNlb
+    Properties:
+      Name: !Sub "${ProjectName}-${Environment}-vpclink"
+      TargetArns:
+        - !Ref NlbArn
+
+  ProductosResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: productos
+
+  ProductosProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref ProductosResource
+      PathPart: "{proxy+}"
+
+  ClientesResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: clientes
+
+  ClientesProxyResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref ClientesResource
+      PathPart: "{proxy+}"
+
+  ProductosRootMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasNlb
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ProductosResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: HTTP_PROXY
+        ConnectionType: VPC_LINK
+        ConnectionId: !Ref VpcLink
+        IntegrationHttpMethod: ANY
+        Uri: !Sub "http://${NlbDnsName}/productos"
+        PassthroughBehavior: WHEN_NO_MATCH
+
+  ProductosProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasNlb
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ProductosProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: HTTP_PROXY
+        ConnectionType: VPC_LINK
+        ConnectionId: !Ref VpcLink
+        IntegrationHttpMethod: ANY
+        Uri: !Sub "http://${NlbDnsName}/productos/{proxy}"
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters:
+          integration.request.path.proxy: method.request.path.proxy
+
+  ClientesRootMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasNlb
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ClientesResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      Integration:
+        Type: HTTP_PROXY
+        ConnectionType: VPC_LINK
+        ConnectionId: !Ref VpcLink
+        IntegrationHttpMethod: ANY
+        Uri: !Sub "http://${NlbDnsName}/clientes"
+        PassthroughBehavior: WHEN_NO_MATCH
+
+  ClientesProxyMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasNlb
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ClientesProxyResource
+      HttpMethod: ANY
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.proxy: true
+      Integration:
+        Type: HTTP_PROXY
+        ConnectionType: VPC_LINK
+        ConnectionId: !Ref VpcLink
+        IntegrationHttpMethod: ANY
+        Uri: !Sub "http://${NlbDnsName}/clientes/{proxy}"
+        PassthroughBehavior: WHEN_NO_MATCH
+        RequestParameters:
+          integration.request.path.proxy: method.request.path.proxy
+
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Condition: HasNlb
+    DependsOn:
+      - ProductosRootMethod
+      - ProductosProxyMethod
+      - ClientesRootMethod
+      - ClientesProxyMethod
+    Properties:
+      RestApiId: !Ref RestApi
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Condition: HasNlb
+    Properties:
+      RestApiId: !Ref RestApi
+      DeploymentId: !Ref ApiDeployment
+      StageName: !Ref ApiStageName
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+Outputs:
+  RestApiId:
+    Value: !Ref RestApi
+  VpcLinkId:
+    Condition: HasNlb
+    Value: !Ref VpcLink
+  InvokeUrl:
+    Condition: HasNlb
+    Value: !Sub "https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${ApiStageName}"
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-ApiInvokeUrl"

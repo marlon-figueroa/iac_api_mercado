@@ -1,0 +1,55 @@
+# Generado por scripts/fetch-outputs.sh — 2026-09-27T05:25:50Z
+AwsRegion: us-east-1
+StackPrefix: api-mercado-dev
+
+vpc:
+  StackStatus: CREATE_COMPLETE
+  PrivateSubnetIds: subnet-0063ec729e7142615,subnet-0eb93a89bd870118c
+  PublicSubnetAz1: subnet-080a76ec07836d26b
+  PublicSubnetIds: subnet-080a76ec07836d26b,subnet-0ffbfeb19325a93a3
+  PublicSubnetAz2: subnet-0ffbfeb19325a93a3
+  VpcId: vpc-0983e37fca76049a8
+  PrivateSubnetAz2: subnet-0eb93a89bd870118c
+  PrivateSubnetAz1: subnet-0063ec729e7142615
+
+kms:
+  StackStatus: CREATE_COMPLETE
+  EksSecretsKeyArn: arn:aws:kms:us-east-1:121014832145:key/43744ff6-5aa9-40bb-bc50-03d6fac63286
+  EksSecretsKeyId: 43744ff6-5aa9-40bb-bc50-03d6fac63286
+
+dynamodb:
+  StackStatus: CREATE_COMPLETE
+  ProductosTableName: dev-productos
+  ProductosTableArn: arn:aws:dynamodb:us-east-1:121014832145:table/dev-productos
+  ClientesTableArn: arn:aws:dynamodb:us-east-1:121014832145:table/dev-clientes
+  ClientesTableName: dev-clientes
+
+iam:
+  StackStatus: CREATE_COMPLETE
+  KarpenterInterruptionQueueName: api-mercado-dev-karpenter
+  EksNodeRoleArn: arn:aws:iam::121014832145:role/api-mercado-dev-eks-node
+  KarpenterNodeRoleArn: arn:aws:iam::121014832145:role/api-mercado-dev-karpenter-node
+  KarpenterNodeInstanceProfileName: api-mercado-dev-karpenter-node
+  KarpenterControllerPolicyArn: arn:aws:iam::121014832145:policy/api-mercado-dev-karpenter-controller
+  FastApiDynamoDbPolicyArn: arn:aws:iam::121014832145:policy/api-mercado-dev-fastapi-dynamodb
+  KarpenterInterruptionQueueArn: arn:aws:sqs:us-east-1:121014832145:api-mercado-dev-karpenter
+  EksClusterRoleArn: arn:aws:iam::121014832145:role/api-mercado-dev-eks-cluster
+
+eks:
+  StackStatus: CREATE_IN_PROGRESS
+
+ec2:
+  StackStatus: MISSING
+
+api:
+  StackStatus: MISSING
+
+eksLive:
+  Status: ACTIVE
+  Version: 1.32
+  Endpoint: https://6121EB9722C0EAD987BBD59B10B34DD1.gr7.us-east-1.eks.amazonaws.com
+  Arn: arn:aws:eks:us-east-1:121014832145:cluster/api-mercado-dev
+
+nlb:
+  NlbArn: ""
+  NlbDnsName: ""

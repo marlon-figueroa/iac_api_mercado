@@ -1,0 +1,27 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: fastapi
+  namespace: api-mercado
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - istio-system/api-mercado-gateway
+  http:
+    - match:
+        - uri:
+            prefix: /productos
+      route:
+        - destination:
+            host: fastapi.api-mercado.svc.cluster.local
+            port:
+              number: 8000
+    - match:
+        - uri:
+            prefix: /clientes
+      route:
+        - destination:
+            host: fastapi.api-mercado.svc.cluster.local
+            port:
+              number: 8000

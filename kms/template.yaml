@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: CMK para cifrado de secrets del cluster EKS
+
+Parameters:
+  Environment:
+    Type: String
+  ProjectName:
+    Type: String
+
+Resources:
+  EksSecretsKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: !Sub "EKS secrets encryption ${ProjectName}-${Environment}"
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: EnableRoot
+            Effect: Allow
+            Principal:
+              AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action: "kms:*"
+            Resource: "*"
+          - Sid: AllowEksService
+            Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action:
+              - kms:Decrypt
+              - kms:DescribeKey
+              - kms:Encrypt
+              - kms:GenerateDataKey*
+              - kms:ReEncrypt*
+            Resource: "*"
+
+  EksSecretsKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub "alias/${ProjectName}-${Environment}-eks"
+      TargetKeyId: !Ref EksSecretsKey
+
+Outputs:
+  EksSecretsKeyArn:
+    Value: !GetAtt EksSecretsKey.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-EksSecretsKeyArn"
+  EksSecretsKeyId:
+    Value: !Ref EksSecretsKey

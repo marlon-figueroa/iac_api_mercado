@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Stack maestro (nested stacks). Requiere empaquetar templates en S3 con aws cloudformation package.
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+  ProjectName:
+    Type: String
+    Default: api-mercado
+  TemplatesBucket:
+    Type: String
+    Description: Bucket S3 con templates empaquetados
+  TemplatesPrefix:
+    Type: String
+    Default: iac-api-mercado
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+  ClusterName:
+    Type: String
+  KubernetesVersion:
+    Type: String
+    Default: "1.33"
+  ProductosTableName:
+    Type: String
+  ClientesTableName:
+    Type: String
+  BootstrapInstanceType:
+    Type: String
+    Default: t3a.small
+  BootstrapCapacityType:
+    Type: String
+    Default: SPOT
+  NlbArn:
+    Type: String
+    Default: ""
+  NlbDnsName:
+    Type: String
+    Default: ""
+  ApiStageName:
+    Type: String
+    Default: dev
+
+Resources:
+  VpcStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/${TemplatesPrefix}/vpc/template.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        VpcCidr: !Ref VpcCidr
+        ClusterName: !Ref ClusterName
+
+  KmsStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: VpcStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/${TemplatesPrefix}/kms/template.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+
+  DynamodbStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: KmsStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/${TemplatesPrefix}/dynamodb/template.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        ProductosTableName: !Ref ProductosTableName
+        ClientesTableName: !Ref ClientesTableName
+
+  IamStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: DynamodbStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/${TemplatesPrefix}/iam/template.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        ProductosTableArn: !GetAtt DynamodbStack.Outputs.ProductosTableArn
+        ClientesTableArn: !GetAtt DynamodbStack.Outputs.ClientesTableArn
+
+  EksStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: IamStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/${TemplatesPrefix}/eks/template.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        ClusterName: !Ref ClusterName
+        KubernetesVersion: !Ref KubernetesVersion
+        VpcId: !GetAtt VpcStack.Outputs.VpcId
+        PrivateSubnetIds: !GetAtt VpcStack.Outputs.PrivateSubnetIds
+        PublicSubnetIds: !GetAtt VpcStack.Outputs.PublicSubnetIds
+        EksClusterRoleArn: !GetAtt IamStack.Outputs.EksClusterRoleArn
+        EksNodeRoleArn: !GetAtt IamStack.Outputs.EksNodeRoleArn
+        EksSecretsKeyArn: !GetAtt KmsStack.Outputs.EksSecretsKeyArn
+        KarpenterControllerPolicyArn: !GetAtt IamStack.Outputs.KarpenterControllerPolicyArn
+        FastApiDynamoDbPolicyArn: !GetAtt IamStack.Outputs.FastApiDynamoDbPolicyArn
+        KarpenterInterruptionQueueArn: !GetAtt IamStack.Outputs.KarpenterInterruptionQueueArn
+        BootstrapInstanceType: !Ref BootstrapInstanceType
+        BootstrapCapacityType: !Ref BootstrapCapacityType
+
+  Ec2Stack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: EksStack
+    Properties:
+      TemplateURL: !Sub "https://${TemplatesBucket}.s3.${AWS::Region}.amazonaws.com/${TemplatesPrefix}/ec2/template.yaml"
+      Parameters:
+        Environment: !Ref Environment
+        ProjectName: !Ref ProjectName
+        VpcId: !GetAtt VpcStack.Outputs.VpcId
+        ClusterName: !Ref ClusterName
+        NodeSecurityGroupId: !GetAtt EksStack.Outputs.NodeSecurityGroupId
+
+Outputs:
+  VpcId:
+    Value: !GetAtt VpcStack.Outputs.VpcId
+  ClusterName:
+    Value: !GetAtt EksStack.Outputs.ClusterName
+  ProductosTableName:
+    Value: !GetAtt DynamodbStack.Outputs.ProductosTableName
+  FastApiPodRoleArn:
+    Value: !GetAtt EksStack.Outputs.FastApiPodRoleArn
+  KarpenterControllerRoleArn:
+    Value: !GetAtt EksStack.Outputs.KarpenterControllerRoleArn

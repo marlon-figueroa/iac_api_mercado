@@ -1,0 +1,19 @@
+%%{init: {'theme': 'base', 'flowchart': {'useMaxWidth': false}}}%%
+flowchart TB
+  Cliente[Cliente HTTP]
+  APIGW[API Gateway REST]
+  VpcLink[VPC Link]
+  NLB[NLB interno]
+  Istio[Istio Ingress Gateway]
+  FastAPI[FastAPI en EKS]
+  DDB[(DynamoDB)]
+  IRSA[Rol IRSA del pod]
+  Karpenter[Karpenter nodos Spot]
+  EKS[Plano de control EKS]
+
+  Cliente --> APIGW --> VpcLink --> NLB --> Istio --> FastAPI
+  FastAPI --> DDB
+  FastAPI --> IRSA
+  IRSA --> DDB
+  EKS --> Karpenter
+  Karpenter --> FastAPI

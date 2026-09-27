@@ -1,0 +1,11 @@
+%%{init: {'theme': 'base', 'flowchart': {'useMaxWidth': false}}}%%
+flowchart TB
+  Infra[make infra]
+  Kube[make kubeconfig]
+  Plat[make platform]
+  App[make app]
+  Nlb[make discover-nlb]
+  Api[make api]
+  Smoke[make smoke]
+
+  Infra --> Kube --> Plat --> App --> Nlb --> Api --> Smoke

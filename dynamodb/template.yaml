@@ -1,0 +1,65 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Tablas DynamoDB productos y clientes (on-demand)
+
+Parameters:
+  Environment:
+    Type: String
+  ProjectName:
+    Type: String
+  ProductosTableName:
+    Type: String
+  ClientesTableName:
+    Type: String
+
+Resources:
+  ProductosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref ProductosTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: productoId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: productoId
+          KeyType: HASH
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  ClientesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref ClientesTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: clienteId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: clienteId
+          KeyType: HASH
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  ProductosTableName:
+    Value: !Ref ProductosTable
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-ProductosTableName"
+  ProductosTableArn:
+    Value: !GetAtt ProductosTable.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-ProductosTableArn"
+  ClientesTableName:
+    Value: !Ref ClientesTable
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-ClientesTableName"
+  ClientesTableArn:
+    Value: !GetAtt ClientesTable.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-ClientesTableArn"

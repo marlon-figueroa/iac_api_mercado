@@ -1,0 +1,15 @@
+%%{init: {'theme': 'base', 'flowchart': {'useMaxWidth': false}}}%%
+flowchart TB
+  subgraph ns [Namespace api-mercado]
+    SA[ServiceAccount con IRSA]
+    CM[ConfigMap fastapi-source]
+    DEP[Deployment fastapi]
+    SVC[Service puerto 8000]
+    VS[VirtualService]
+    SA --> DEP
+    CM --> DEP
+    DEP --> SVC
+    VS --> SVC
+  end
+  DDB[(DynamoDB)]
+  DEP --> DDB

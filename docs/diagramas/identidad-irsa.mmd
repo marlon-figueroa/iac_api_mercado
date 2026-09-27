@@ -1,0 +1,15 @@
+%%{init: {'theme': 'base', 'flowchart': {'useMaxWidth': false}}}%%
+flowchart TB
+  OIDC[Proveedor OIDC del cluster]
+  SA[ServiceAccount fastapi]
+  Rol[Rol IAM fastapi-pod]
+  Pol[Policy DynamoDB acotada]
+  Pod[Pod FastAPI]
+  DDB[(Tablas productos y clientes)]
+
+  OIDC --> Rol
+  SA -->|anotacion role-arn| Rol
+  Rol --> Pol
+  Pod --> SA
+  Pod -->|AssumeRoleWithWebIdentity| DDB
+  Pol --> DDB

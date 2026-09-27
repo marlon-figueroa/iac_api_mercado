@@ -1,0 +1,16 @@
+{
+  "theme": "base",
+  "themeVariables": {
+    "fontSize": "16px",
+    "fontFamily": "arial"
+  },
+  "flowchart": {
+    "useMaxWidth": false,
+    "htmlLabels": true,
+    "curve": "basis",
+    "padding": 10,
+    "nodeSpacing": 26,
+    "rankSpacing": 32,
+    "diagramPadding": 8
+  }
+}

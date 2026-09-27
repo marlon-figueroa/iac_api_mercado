@@ -1,0 +1,40 @@
+# Parámetros globales del proyecto (usados por Makefile y scripts/deploy.sh)
+AwsRegion: us-east-1
+# Perfil CLI (aws login). Vacío = usa AWS_PROFILE del entorno o [default]
+AwsProfile: mfigueroa_lab
+Environment: dev
+ProjectName: api-mercado
+
+VpcCidr: 10.0.0.0/16
+
+KubernetesVersion: "1.33"
+ClusterName: api-mercado-dev
+
+BootstrapInstanceTypes: t3a.medium
+BootstrapDesiredCapacity: 1
+BootstrapMinSize: 1
+BootstrapMaxSize: 2
+BootstrapCapacityType: SPOT
+
+ProductosTableName: dev-productos
+ClientesTableName: dev-clientes
+
+ApiStageName: dev
+
+# Karpenter (manifests k8s/karpenter/)
+KarpenterInstanceTypes:
+  - t3a.small
+  - t3a.medium
+KarpenterMaxCpu: "4"
+
+# Rellenar tras desplegar Istio (scripts/discover-nlb.sh)
+NlbArn: arn:aws:elasticloadbalancing:us-east-1:121014832145:loadbalancer/net/a971280ed89b747529cf5316a673edf1/9233487cdd0e8c42
+NlbDnsName: a971280ed89b747529cf5316a673edf1-9233487cdd0e8c42.elb.us-east-1.amazonaws.com
+
+# Nested stacks empaquetados en S3 (opcional)
+TemplatesBucket: ""
+TemplatesPrefix: iac-api-mercado
+
+# Versiones Helm (platform)
+KarpenterChartVersion: "0.37.0"
+IstioVersion: "1.22.2"

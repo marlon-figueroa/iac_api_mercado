@@ -1,0 +1,191 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Roles IAM para EKS, nodos, Karpenter y policy DynamoDB para FastAPI
+
+Parameters:
+  Environment:
+    Type: String
+  ProjectName:
+    Type: String
+  ProductosTableArn:
+    Type: String
+  ClientesTableArn:
+    Type: String
+
+Resources:
+  EksClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-eks-cluster"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: eks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+        - arn:aws:iam::aws:policy/AmazonEKSVPCResourceController
+
+  EksNodeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-eks-node"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  KarpenterNodeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-${Environment}-karpenter-node"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  KarpenterNodeInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub "${ProjectName}-${Environment}-karpenter-node"
+      Roles:
+        - !Ref KarpenterNodeRole
+
+  KarpenterControllerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "${ProjectName}-${Environment}-karpenter-controller"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - ec2:CreateFleet
+              - ec2:CreateLaunchTemplate
+              - ec2:CreateTags
+              - ec2:DescribeAvailabilityZones
+              - ec2:DescribeImages
+              - ec2:DescribeInstances
+              - ec2:DescribeInstanceTypeOfferings
+              - ec2:DescribeInstanceTypes
+              - ec2:DescribeLaunchTemplates
+              - ec2:DescribeSecurityGroups
+              - ec2:DescribeSpotPriceHistory
+              - ec2:DescribeSubnets
+              - ec2:DeleteLaunchTemplate
+              - ec2:RunInstances
+              - ec2:TerminateInstances
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - iam:PassRole
+            Resource: !GetAtt KarpenterNodeRole.Arn
+          - Effect: Allow
+            Action:
+              - iam:GetInstanceProfile
+              - iam:CreateInstanceProfile
+              - iam:DeleteInstanceProfile
+              - iam:AddRoleToInstanceProfile
+              - iam:RemoveRoleFromInstanceProfile
+              - iam:ListInstanceProfiles
+              - iam:TagInstanceProfile
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - eks:DescribeCluster
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - ssm:GetParameter
+            Resource: !Sub "arn:aws:ssm:${AWS::Region}::parameter/aws/service/*"
+          - Effect: Allow
+            Action:
+              - pricing:GetProducts
+            Resource: "*"
+          - Effect: Allow
+            Action:
+              - sqs:DeleteMessage
+              - sqs:GetQueueAttributes
+              - sqs:GetQueueUrl
+              - sqs:ReceiveMessage
+            Resource: !Sub "arn:aws:sqs:${AWS::Region}:${AWS::AccountId}:${ProjectName}-${Environment}-karpenter"
+
+  FastApiDynamoDbPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub "${ProjectName}-${Environment}-fastapi-dynamodb"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action:
+              - dynamodb:GetItem
+              - dynamodb:PutItem
+              - dynamodb:UpdateItem
+              - dynamodb:DeleteItem
+              - dynamodb:Query
+              - dynamodb:Scan
+              - dynamodb:BatchGetItem
+              - dynamodb:BatchWriteItem
+              - dynamodb:DescribeTable
+            Resource:
+              - !Ref ProductosTableArn
+              - !Ref ClientesTableArn
+
+  KarpenterInterruptionQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-${Environment}-karpenter"
+      MessageRetentionPeriod: 300
+      SqsManagedSseEnabled: true
+
+Outputs:
+  EksClusterRoleArn:
+    Value: !GetAtt EksClusterRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-EksClusterRoleArn"
+  EksNodeRoleArn:
+    Value: !GetAtt EksNodeRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-EksNodeRoleArn"
+  KarpenterNodeRoleArn:
+    Value: !GetAtt KarpenterNodeRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-KarpenterNodeRoleArn"
+  KarpenterNodeInstanceProfileName:
+    Value: !Ref KarpenterNodeInstanceProfile
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-KarpenterNodeInstanceProfile"
+  KarpenterControllerPolicyArn:
+    Value: !Ref KarpenterControllerPolicy
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-KarpenterControllerPolicyArn"
+  FastApiDynamoDbPolicyArn:
+    Value: !Ref FastApiDynamoDbPolicy
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-FastApiDynamoDbPolicyArn"
+  KarpenterInterruptionQueueName:
+    Value: !GetAtt KarpenterInterruptionQueue.QueueName
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-KarpenterInterruptionQueueName"
+  KarpenterInterruptionQueueArn:
+    Value: !GetAtt KarpenterInterruptionQueue.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-KarpenterInterruptionQueueArn"

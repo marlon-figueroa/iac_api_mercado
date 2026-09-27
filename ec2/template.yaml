@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: SG para targets NLB y parametros SSM para Karpenter/plataforma
+
+Parameters:
+  Environment:
+    Type: String
+  ProjectName:
+    Type: String
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+  ClusterName:
+    Type: String
+  NodeSecurityGroupId:
+    Type: String
+
+Resources:
+  NlbTargetSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub "NLB/Istio targets ${ClusterName}"
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 10.0.0.0/8
+          Description: HTTP from VPC
+        - IpProtocol: tcp
+          FromPort: 15021
+          ToPort: 15021
+          CidrIp: 10.0.0.0/8
+          Description: Istio health
+        - IpProtocol: tcp
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: 10.0.0.0/8
+          Description: Gateway proxy
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-nlb-targets"
+
+  NodeToNlbIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref NodeSecurityGroupId
+      IpProtocol: tcp
+      FromPort: 80
+      ToPort: 8080
+      SourceSecurityGroupId: !Ref NlbTargetSecurityGroup
+      Description: NLB to workloads
+
+  SsmClusterName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${Environment}/cluster-name"
+      Type: String
+      Value: !Ref ClusterName
+
+  SsmNodeSecurityGroup:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${Environment}/node-security-group-id"
+      Type: String
+      Value: !Ref NodeSecurityGroupId
+
+  SsmKarpenterDiscovery:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${Environment}/karpenter-discovery"
+      Type: String
+      Value: !Ref ClusterName
+
+Outputs:
+  NlbTargetSecurityGroupId:
+    Value: !Ref NlbTargetSecurityGroup
+    Export:
+      Name: !Sub "${ProjectName}-${Environment}-NlbTargetSecurityGroupId"
