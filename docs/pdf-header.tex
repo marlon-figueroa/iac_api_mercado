@@ -1,5 +1,50 @@
-% Encaja cada figura en la caja de texto. Mermaid exporta PNG con un
-% bounding box en pixeles; sin este tope LaTeX las dibuja a tamaño
-% natural y desbordan el margen (o disparan "Dimension too large").
-\usepackage{graphicx}
-\setkeys{Gin}{width=0.92\linewidth,height=0.62\textheight,keepaspectratio}
+% Pandoc solo reduce una figura (\pandocbounded) si no cabe. El tamaño
+% de impresión lo marca la densidad del PNG en scripts/build-docs.sh.
+%
+% \texttt no parte la línea. En tablas y párrafos una ruta larga
+% (kubernetes.io/role/internal-elb) invadía la columna de al lado.
+\usepackage{xparse}
+\usepackage{float}
+\makeatletter
+\def\fps@figure{H}
+\makeatother
+\ExplSyntaxOn
+\cs_new_protected:Npn \mfig_break_tt:n #1
+  {
+    \tl_clear:N \l_tmpb_tl
+    \bool_set_false:N \l_tmpa_bool
+    \tl_map_inline:nn {#1}
+      {
+        \bool_set_false:N \l_tmpb_bool
+        \token_if_letter:NT ##1
+          {
+            \int_compare:nT { `##1 > 64 }
+              {
+                \int_compare:nT { `##1 < 91 }
+                  { \bool_set_true:N \l_tmpb_bool }
+              }
+          }
+        \bool_if:nT { \l_tmpa_bool && \l_tmpb_bool }
+          { \tl_put_right:Nn \l_tmpb_tl { \hspace{0pt} } }
+        \tl_put_right:Nn \l_tmpb_tl { ##1 }
+        \token_if_eq_meaning:NNT ##1 \_
+          { \tl_put_right:Nn \l_tmpb_tl { \hspace{0pt} } }
+        \bool_if:nT
+          {
+            \token_if_eq_charcode_p:NN ##1 / ||
+            \token_if_eq_charcode_p:NN ##1 . ||
+            \token_if_eq_charcode_p:NN ##1 -
+          }
+          { \tl_put_right:Nn \l_tmpb_tl { \hspace{0pt} } }
+        \bool_set:Nn \l_tmpa_bool
+          { \token_if_letter_p:N ##1 && ! \l_tmpb_bool }
+      }
+    \group_begin:
+      \ttfamily
+      \tl_use:N \l_tmpb_tl
+    \group_end:
+  }
+\RenewDocumentCommand \texttt { m } { \mfig_break_tt:n {#1} }
+\ExplSyntaxOff
+\usepackage{fvextra}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\},breaklines,breakanywhere}

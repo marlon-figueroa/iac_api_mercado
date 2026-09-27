@@ -1,14 +1,9 @@
 %%{init: {'theme': 'base', 'flowchart': {'useMaxWidth': false}}}%%
 flowchart TB
-  C[Cliente]
-  A["API Gateway stage /dev"]
-  V[VPC Link]
-  N[NLB TCP 80]
-  I[Istio HTTP 8080]
-  S[VirtualService]
-  P["uvicorn :8000"]
-  T[(Tabla DynamoDB)]
-
-  C -->|HTTPS| A
-  A -->|HTTP proxy| V --> N --> I --> S --> P
-  P -->|boto3 IRSA| T
+  C[Cliente] -->|HTTPS| A[API Gateway]
+  A -->|HTTP proxy| V[VPC Link]
+  V --> N[NLB puerto 80]
+  N --> I[Istio puerto 8080]
+  I --> S[VirtualService]
+  S --> P[FastAPI puerto 8000]
+  P -->|IRSA| T[(DynamoDB)]

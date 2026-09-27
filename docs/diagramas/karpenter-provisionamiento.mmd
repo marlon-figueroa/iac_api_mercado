@@ -1,11 +1,9 @@
 %%{init: {'theme': 'base', 'flowchart': {'useMaxWidth': false}}}%%
 flowchart TB
-  Pod[Pod Pending]
-  Sched[Scheduler de Kubernetes]
-  Ctrl[Controlador Karpenter IRSA]
-  Pool[NodePool spot-workloads]
-  Class[EC2NodeClass default]
-  Ec2[Instancia Spot AL2023]
-  Join[Nodo Ready en el cluster]
-
-  Pod --> Sched --> Ctrl --> Pool --> Class --> Ec2 --> Join --> Pod
+  Pod[Pod Pending] --> Sched[Scheduler]
+  Sched --> Ctrl[Karpenter IRSA]
+  Ctrl --> Pool[NodePool Spot]
+  Pool --> Class[EC2NodeClass AL2023]
+  Class --> Ec2[Instancia Spot]
+  Ec2 --> Join[Nodo Ready]
+  Join --> Pod

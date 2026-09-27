@@ -29,7 +29,7 @@ Este informe describe el diseño, el recorrido de una petición, cada stack, la 
 | Diagramas | `docs/diagramas/*.mmd` renderizados a `docs/media/*.png` |
 | Audiencia | Quien despliega, opera o evalúa la solución |
 
-El PDF se genera con Pandoc y un motor LaTeX (Tectonic, XeLaTeX o pdfLaTeX). Las figuras se rasterizan con Mermaid CLI sobre fondo blanco, se reescalan a un ancho máximo de 1200 píxeles y se les asigna una densidad para que quepan en el ancho útil de una hoja A4. El preámbulo `docs/pdf-header.tex` impone además un tope de ancho y de alto dentro de LaTeX, de modo que una imagen nunca desborde el margen ni ocupe más de una fracción de la página.
+El PDF se genera con Pandoc y un motor LaTeX (Tectonic, XeLaTeX o pdfLaTeX). Las figuras se rasterizan con Mermaid CLI sobre fondo blanco, con el lado mayor acotado, y se les asigna una densidad para que el tamaño impreso no pase de unos 14,5 cm de ancho ni de unos 11 cm de alto. Pandoc solo reduce una figura si aun así no cabe; no la estira para llenar la página.
 
 ---
 
@@ -983,7 +983,7 @@ El NAT procesa el pull de imágenes y las llamadas a DynamoDB y STS. Cada `make 
 | `discover-nlb` elige otro balanceador | Fallback al primer NLB interno | Esperar el hostname del Service y volver a descubrir |
 | Imagen local no arranca en el nodo | Docker build no se subió | Modo ConfigMap, o URI de ECR en `FASTAPI_IMAGE` |
 | Listado incompleto | `Scan` de más de 1 MB | Esperable; falta paginar en código |
-| PDF con figuras enormes o cortadas | PNG a 72 DPI con lienzo de miles de píxeles | `make docs-pdf` reescala y aplica `docs/pdf-header.tex` |
+| PDF con figuras enormes, cortadas o en tira estrecha | PNG sin densidad o diagrama demasiado alto | `make docs-pdf` (usa `--size`, fondo blanco y DPI acotado) |
 
 ---
 
@@ -1022,7 +1022,7 @@ iac_api_mercado/
   scripts/build-docs.sh     Diagramas y PDF
   docs/PROYECTO.md          Este informe
   docs/diagramas/           Fuentes Mermaid
-  docs/pdf-header.tex       Tope de tamaño de las figuras
+  docs/pdf-header.tex       Corte de lineas en bloques de codigo
   docs/mermaid-config.json  Tema base y useMaxWidth en falso
 ```
 
@@ -1036,11 +1036,11 @@ Los diagramas usan el tema `base`. Cada `.mmd` incluye la directiva de tema y `d
 
 `scripts/build-docs.sh` hace, por cada diagrama:
 
-1. Render con `--size 1100` (lado mayor del PNG) y escala 1. Las opciones antiguas `-w` y `-H` ya no existen en Mermaid CLI y, si se ignoran, el lienzo queda sin tope.
-2. Si el PNG supera 1200 píxeles de ancho o 1500 de alto, lo reescala con `sips` (macOS) o con ImageMagick.
-3. Calcula una densidad para que el ancho físico quede cerca del ancho útil de la hoja (unos 6,2 pulgadas).
+1. Render con `--size 1400` (lado mayor) y escala 2, fondo blanco. Las opciones antiguas `-w` y `-H` ya no existen en Mermaid CLI; sin `--size` el lienzo queda sin tope y LaTeX lo dibuja fuera de la página o reporta un error de dimensión.
+2. Si el PNG supera 1600 píxeles de ancho o 1400 de alto, lo reescala con `sips` (macOS) o con ImageMagick.
+3. Calcula la densidad para que el tamaño impreso quepa en 14,5 cm de ancho y 11 cm de alto, sin ampliar la imagen por encima de su tamaño natural.
 
-Pandoc incluye `docs/pdf-header.tex`, que fija en `graphicx` un ancho máximo del 92 % de la línea y un alto máximo del 62 % del alto de texto, conservando la proporción. Aunque un diagrama futuro salga más alto de la cuenta, LaTeX lo reduce en lugar de dejarlo cortado al borde de la página.
+Pandoc envuelve cada figura y solo la reduce si todavía no cabe en la caja de texto. `docs/pdf-header.tex` activa el corte de líneas en los bloques de código. No fuerza un ancho de `graphicx`, porque ese ajuste estira los diagramas hasta ocupar media página.
 
 Requisitos locales:
 
@@ -1078,7 +1078,35 @@ Conviene regenerar el PDF cuando cambie un diagrama, un puerto, un prefijo o el 
 
 ---
 
-## 34. Referencias
+## 34. Anexo — lectura de un despliegue correcto
+
+Esta sección fija qué debe verse cuando el laboratorio quedó bien, para no confundir un arranque lento con un fallo de arquitectura. Sirve también como lista de cierre antes de dar por válido el entorno.
+
+### 34.1 Después de la red y de los datos
+
+La VPC existe con cuatro subnets y un NAT. Las dos privadas llevan las etiquetas de balanceador interno y de descubrimiento de Karpenter. Las tablas responden a `DescribeTable` y están en modo bajo demanda. La clave KMS tiene alias `alias/{Project}-{Environment}-eks` y la rotación habilitada. Todavía no hay pods ni URL pública de negocio: es el estado normal al terminar `make infra`.
+
+### 34.2 Después del clúster y de la plataforma
+
+`kubectl get nodes` muestra al menos el nodo bootstrap en Ready, con AMI de Amazon Linux 2023. En `kube-system` están el pod de Karpenter (una réplica), istiod y el ingress. El Service `istio-ingressgateway-internal` tiene un hostname en `status.loadBalancer.ingress`. Hasta que ese hostname existe, no hay NLB que apuntar y `make api` no debe inventar un ARN.
+
+El EC2NodeClass `default` referencia el rol de nodo Karpenter y el grupo de seguridad del clúster. El NodePool `spot-workloads` limita la CPU a 4 y solo admite los dos tipos `t3a`. Si la aplicación cabe en el bootstrap, es válido que no aparezca un segundo nodo: Karpenter no crea instancias por anticipado.
+
+### 34.3 Después de la aplicación
+
+En el namespace `api-mercado` hay un pod `fastapi` en Running y Ready. El contenedor `api` ya pasó el `pip install` si el modo es ConfigMap. El ServiceAccount tiene la anotación del rol. Un `GET` interno a `/health` responde `status: ok`. Eso no prueba DynamoDB. La prueba que sí lo prueba es `GET /productos` a través de la URL de API Gateway, que es lo que repite `make smoke` hasta cinco veces.
+
+### 34.4 Después de la fachada
+
+El stack de API Gateway publica `InvokeUrl`. Un `POST` de producto devuelve 201 y un UUID. El mismo id en `GET` devuelve el ítem. `DELETE` devuelve 204. La fecha de un cliente aceptada como `DD/MM/YYYY` se lee después como `YYYY-MM-DD`. Si el listado responde 200 con `items` vacío, el camino está sano y simplemente no hay datos.
+
+### 34.5 Señales que no deben ignorarse
+
+Un pod Ready con errores `AccessDenied` en el log al llamar a DynamoDB es un fallo de IRSA, no de red. Un NLB activo con 503 en la URL pública es un fallo de endpoints o de VirtualService. Un `make discover-nlb` que escribe un ARN cuya DNS no coincide con el Service está apuntando a otro balanceador de la cuenta. Un PDF regenerado con figuras cortadas o más anchas que el texto indica que se volvió a exportar el diagrama sin `--size` o sin recalcular la densidad: hay que correr `make docs-pdf` completo, no incrustar el PNG a mano.
+
+---
+
+## 35. Referencias
 
 - Amazon EKS, guía de usuario: planos de control, node groups, IRSA y addons.
 - Amazon API Gateway, integración privada de REST API mediante VPC Link y NLB.

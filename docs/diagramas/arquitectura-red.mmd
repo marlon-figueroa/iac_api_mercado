@@ -1,22 +1,18 @@
 %%{init: {'theme': 'base', 'flowchart': {'useMaxWidth': false}}}%%
 flowchart TB
-  Cliente[Cliente en Internet]
-  APIGW[API Gateway regional]
+  Cliente[Cliente] --> APIGW[API Gateway regional]
+  APIGW -->|VPC Link| NLB
   subgraph vpc [VPC 10.0.0.0/16]
-    subgraph public [Subnets publicas /24]
-      NAT[NAT Gateway AZ1]
+    direction LR
+    subgraph public [Subnets publicas]
+      NAT[NAT Gateway]
       NLB[NLB interno]
     end
-    subgraph private [Subnets privadas /24]
-      Nodos[Nodos EKS y Karpenter]
+    subgraph private [Subnets privadas]
+      Nodos[Nodos EKS]
       Pods[Pods FastAPI]
     end
   end
-  DDB[(DynamoDB)]
-
-  Cliente --> APIGW
-  APIGW -->|VPC Link| NLB
-  NLB --> Pods
   Nodos --> Pods
-  private --> NAT
-  Pods --> DDB
+  Pods --> NAT
+  Pods --> DDB[(DynamoDB)]

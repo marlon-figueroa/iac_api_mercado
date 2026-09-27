@@ -31,28 +31,29 @@ run_mmdc() {
   fi
 }
 
-# Ajusta el PNG al ancho de una pagina A4. Sin esto el lienzo de Puppeteer
-# queda en miles de pixeles a 72 DPI y LaTeX lo dibuja fuera del margen.
+# Fija la densidad para que el PNG quepa en la caja de texto (como máximo
+# unos 14,5 cm de ancho y 11 cm de alto) sin estirarlo ni desbordar.
 normalize_png() {
   local png="$1"
   local w h dpi
   if command -v sips >/dev/null 2>&1; then
     w=$(sips -g pixelWidth "$png" | awk '/pixelWidth/{print $2}')
     h=$(sips -g pixelHeight "$png" | awk '/pixelHeight/{print $2}')
-    if [[ "${w:-0}" -gt 1200 ]]; then
-      sips --resampleWidth 1200 "$png" >/dev/null
+    if [[ "${w:-0}" -gt 1600 ]]; then
+      sips --resampleWidth 1600 "$png" >/dev/null
       w=$(sips -g pixelWidth "$png" | awk '/pixelWidth/{print $2}')
       h=$(sips -g pixelHeight "$png" | awk '/pixelHeight/{print $2}')
     fi
-    if [[ "${h:-0}" -gt 1500 ]]; then
-      sips --resampleHeight 1500 "$png" >/dev/null
+    if [[ "${h:-0}" -gt 1400 ]]; then
+      sips --resampleHeight 1400 "$png" >/dev/null
       w=$(sips -g pixelWidth "$png" | awk '/pixelWidth/{print $2}')
+      h=$(sips -g pixelHeight "$png" | awk '/pixelHeight/{print $2}')
     fi
-    dpi=$(python3 -c "print(max(120, int(round(${w:-1200} / 6.2))))")
+    dpi=$(python3 -c "print(max(110, int(round(max(${w:-800}/5.4, ${h:-600}/4.8)))))")
     sips -s dpiWidth "$dpi" -s dpiHeight "$dpi" "$png" >/dev/null
-    echo "  PNG ${w}px, ${dpi} DPI → $(basename "$png")"
+    echo "  PNG ${w}x${h}px, ${dpi} DPI → $(basename "$png")"
   elif command -v magick >/dev/null 2>&1; then
-    magick "$png" -resize '1200x1500>' -units PixelsPerInch -density 170 "$png"
+    magick "$png" -resize '1600x1400>' -units PixelsPerInch -density 180 "$png"
   fi
 }
 
@@ -65,7 +66,7 @@ for mmd in "${DIAGRAMS}"/*.mmd; do
   # --size limita el lado mayor del PNG. -w/-H ya no existen en mermaid-cli
   # reciente y, sin tope, Puppeteer exporta un lienzo que LaTeX no cabe en A4.
   run_mmdc -t base -c "$MMD_CONFIG" -i "$mmd" -o "${MEDIA}/${base}.png" \
-    -b white --size 1100 -s 1
+    -b white --size 1400 -s 2
   normalize_png "${MEDIA}/${base}.png"
 done
 
@@ -89,7 +90,7 @@ PANDOC_COMMON=(
   -V papersize=a4
   -V geometry:"a4paper,margin=2.3cm"
   -V fontsize=11pt
-  -V linestretch=1.15
+  -V linestretch=1.28
   -V title="API REST Supermercado - IaC EKS"
   -V author="Marlon Ernesto Figueroa Fuentes"
   --toc

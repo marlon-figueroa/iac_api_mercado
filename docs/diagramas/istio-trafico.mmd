@@ -1,13 +1,8 @@
 %%{init: {'theme': 'base', 'flowchart': {'useMaxWidth': false}}}%%
 flowchart TB
-  NLB[NLB interno puerto 80]
-  IG[Ingress Gateway puerto 8080]
-  GW[Gateway api-mercado-gateway]
-  VS[VirtualService fastapi]
-  SVC[Service ClusterIP 8000]
-  Pod[Pod FastAPI]
-
-  NLB --> IG --> GW --> VS
-  VS -->|prefijo /productos| SVC
-  VS -->|prefijo /clientes| SVC
-  SVC --> Pod
+  NLB[NLB puerto 80] --> IG[Ingress puerto 8080]
+  IG --> GW[Gateway]
+  GW --> VS[VirtualService]
+  VS -->|/productos| SVC[Service :8000]
+  VS -->|/clientes| SVC
+  SVC --> Pod[Pod FastAPI]
