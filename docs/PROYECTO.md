@@ -7,13 +7,14 @@ lang: es
 # API REST Supermercado — Documentación técnica
 
 **Autor:** Marlon Ernesto Figueroa Fuentes
-**Versión del documento:** 2.0
+**Versión del documento:** 2.1
 **Fecha:** 27 de septiembre de 2026
+**Estado:** sincronizado con el repositorio actual y con la implementación desplegada en laboratorio
 **Entorno descrito:** laboratorio `dev` (región configurable, por defecto `us-east-1`)
 
 Infraestructura como código (IaC) para una API REST de supermercado en AWS. El tráfico entra por **Amazon API Gateway**, atraviesa un **VPC Link** hacia un **Network Load Balancer interno**, pasa por **Istio** y llega a un microservicio **FastAPI** en **Amazon EKS**. Los datos persisten en **Amazon DynamoDB**. El cómputo elástico de cargas de trabajo usa **Karpenter** con instancias **Spot**. La red, la identidad, el cifrado y el clúster se declaran en plantillas **CloudFormation** modulares.
 
-Este informe describe el diseño, el recorrido de una petición, cada stack, la plataforma Kubernetes, el contrato de la API, la operación y la forma de regenerar el PDF. Los identificadores de cuenta, ARN de balanceadores y nombres DNS reales no se copian aquí: viven en `vars.yaml` después del despliegue y no deben publicarse en documentación compartida.
+Este informe describe el diseño, el recorrido de una petición, cada stack, la plataforma Kubernetes, el contrato de la API, la operación y la forma de regenerar el PDF. El contenido se mantiene alineado con la estructura real del repo: `vars.yaml` define la configuración operativa, `k8s/fastapi/main.py` implementa la API y los scripts del `Makefile` orquestan despliegue, descubrimiento del NLB y generación de documentación. Los identificadores de cuenta, ARN de balanceadores y nombres DNS reales no se copian aquí: viven en `vars.yaml` después del despliegue y no deben publicarse en documentación compartida.
 
 ---
 

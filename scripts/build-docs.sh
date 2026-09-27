@@ -99,6 +99,17 @@ PANDOC_COMMON=(
 )
 
 if [[ -n "$PDF_ENGINE" ]]; then
+  echo "Generando HTML desde PROYECTO.md..."
+  (
+    cd "$DOCS"
+    pandoc "PROYECTO.md" \
+      -o "PROYECTO.html" \
+      -s \
+      -c "pdf.css" \
+      "${PANDOC_COMMON[@]}"
+  )
+  echo "HTML: ${OUT_HTML}"
+
   echo "Generando PDF con ${PDF_ENGINE}..."
   (
     cd "$DOCS"
