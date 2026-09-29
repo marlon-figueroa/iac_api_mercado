@@ -10,6 +10,8 @@ Cliente → API Gateway (/productos, /clientes) → VPC Link → NLB interno →
                                                           Karpenter (Spot)
 ```
 
+![Arquitectura AWS de api-mercado-dev](docs/diagramas/arquitectura-aws.png)
+
 ## Documentación
 
 - Documento técnico completo: [docs/PROYECTO.md](docs/PROYECTO.md)
